@@ -79,7 +79,7 @@ def mostrar_banner():
         f"{Fore.MAGENTA}                █  ████████  ████████        ██  ███  ██{Style.RESET_ALL}\n"
         f"{Fore.RED}                █        ██        ██  ████  ██  ████  █{Style.RESET_ALL}\n"
         f"{Fore.YELLOW}                                        {Style.RESET_ALL}\n"
-        f"{Fore.GREEN}         by m10sec (2025){Style.RESET_ALL} - {Fore.CYAN}Flipador de Tools{Style.RESET_ALL} - {Fore.MAGENTA}m10sec@proton.me{Style.RESET_ALL}\n"
+        f"{Fore.GREEN}         by m10sec (2025){Style.RESET_ALL} - {Fore.CYAN}Flipador de Tools{Style.RESET_ALL} - {Fore.MAGENTA}m10sec@proton.me and company{Style.RESET_ALL}\n"
         f"{Fore.YELLOW}        Buscador de dominios ultra-rápido en grandes bases de datos{Style.RESET_ALL}\n"
         f"{Fore.CYAN}                usando Aho-Corasick + Multiprocessing{Style.RESET_ALL}\n\n"
         f"{Fore.CYAN}============================================================================{Style.RESET_ALL}\n"
