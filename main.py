@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Buscador de dominios rápido (Aho-Corasick + multiprocessing)
+Buscador de dominios rápido (Aho-Corasick + multiprocessing) con asociación de emails
 """
 
 import argparse
@@ -17,6 +17,12 @@ try:
     import ahocorasick  # pyahocorasick
 except Exception:
     print("[X] Falta el paquete 'pyahocorasick'. Instálalo con: pip install pyahocorasick", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    import pandas as pd
+except Exception:
+    print("[X] Falta el paquete 'pandas'. Instálalo con: pip install pandas", file=sys.stderr)
     sys.exit(1)
 
 # --- barra de progreso opcional ---
@@ -87,7 +93,7 @@ def mostrar_banner():
 
     print(f"{Fore.CYAN}Ejemplo CLI:{Style.RESET_ALL}")
     print(f"  {Fore.YELLOW}python3 buscar_dominios_fast.py --dominios ./dominios.txt --db /ruta/bases "
-          f"--ext txt,csv,log --out ./salida --crear-vacios --jobs 0{Style.RESET_ALL}\n")
+          f"--ext txt,csv,log --out ./salida --crear-vacios --jobs 0 --excel plataformas.xlsx{Style.RESET_ALL}\n")
 
     print(f"{Fore.CYAN}Por defecto:{Style.RESET_ALL}")
     print(f" - Extensiones: {Fore.GREEN}{','.join(DEF_EXTS)}{Style.RESET_ALL}")
@@ -129,6 +135,69 @@ def _process_file(path: str) -> List[Tuple[str, str]]:
     except Exception as e:
         sys.stderr.write(f"[!] No se pudo leer {p}: {e}\n")
     return out
+#Funcion para leer excel
+def leer_plataformas_excel(ruta_excel: Path) -> Dict[str, str]:
+    """
+    Lee el archivo Excel de plataformas y devuelve un diccionario
+    que mapea dominio/URL -> email
+    """
+    mapeo_plataformas = {}
+    try:
+        df = pd.read_excel(ruta_excel)
+
+        # Verificar que tiene las columnas necesarias
+        columnas_requeridas = ["Dominio", "URL de la plataforma", "Correo electrónico"]
+        if not all(col in df.columns for col in columnas_requeridas):
+            print(f"[X] El archivo Excel debe contener las columnas: {columnas_requeridas}")
+            return mapeo_plataformas
+
+        for _, fila in df.iterrows():
+            # Verificar primero que no sean NaN, luego convertir a string
+            dominio = str(fila["Dominio"]).strip().lower() if pd.notna(fila["Dominio"]) else ""
+            url = str(fila["URL de la plataforma"]).strip().lower() if pd.notna(fila["URL de la plataforma"]) else ""
+            email = str(fila["Correo electrónico"]).strip() if pd.notna(fila["Correo electrónico"]) else ""
+
+            # Mapear tanto el dominio como la URL al email
+            if dominio:  # Esto verifica que no esté vacío
+                mapeo_plataformas[dominio] = email
+            if url:  # Esto verifica que no esté vacío
+                mapeo_plataformas[url] = email
+
+        print(f"   → Cargadas {len(mapeo_plataformas)} entradas de plataformas desde Excel")
+
+    except Exception as e:
+        print(f"[X] Error leyendo el Excel de plataformas: {e}")
+
+    return mapeo_plataformas
+# --- Modificar la función de escribir resultados ---
+def escribir_resultados(agg: Dict[str, List[str]], out_dir: Path, crear_archivo_vacio: bool, mapeo_plataformas: Dict[str, str]):
+    """
+    Escribe los resultados organizados por dominio con su email asociado
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    for dominio, lineas in agg.items():
+        safe = dominio.replace("/", "_")
+        out_path = out_dir / f"{safe}.txt"
+
+        if lineas or crear_archivo_vacio:
+            with out_path.open("w", encoding="utf-8") as f:
+                # Buscar email asociado en el mapeo de plataformas
+                email_asociado = mapeo_plataformas.get(dominio.lower(), "No encontrado")
+
+                # Escribir sección del dominio
+                f.write(f"# --- DOMINIO: {dominio} ---\n")
+                f.write(f"# Email asociado: {email_asociado}\n")
+                f.write("#" + "="*50 + "\n\n")
+
+                if not lineas:
+                    f.write("(Sin coincidencias)\n")
+                else:
+                    f.write("# Credenciales encontradas:\n")
+                    for linea in lineas:
+                        f.write(f"{linea}\n")
+
+                f.write(f"\n# Total de credenciales para {dominio}: {len(lineas)}\n")
 
 # --- helpers de IO ---
 def leer_dominios(path_lista: Path) -> List[str]:
@@ -199,19 +268,6 @@ def listar_archivos(raiz: Path, exts: List[str], ignore_trash: bool = True) -> L
     print(f"   (Ignorados {ignorados} temporales/sistema)")
     return archivos
 
-def escribir_resultados(agg: Dict[str, List[str]], out_dir: Path, crear_archivo_vacio: bool):
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for dominio, lines in agg.items():
-        safe = dominio.replace("/", "_")
-        out_path = out_dir / f"{safe}.txt"
-        if lines or crear_archivo_vacio:
-            with out_path.open("w", encoding="utf-8") as f:
-                f.write(f"# Resultados para: {dominio}\n")
-                if not lines:
-                    f.write("(Sin coincidencias)\n")
-                else:
-                    f.write("\n".join(lines) + "\n")
-
 def _normaliza_path_input(raw: str) -> Path:
     s = raw.strip().strip('"').strip("'")
     s = s.replace(r"\ ", " ")
@@ -256,6 +312,7 @@ def parse_args() -> argparse.Namespace:
                     help="No ignorar archivos temporales/sistema (por defecto se ignoran)")
     ap.add_argument("--no-progress", action="store_true",
                     help="Desactivar barra de progreso (tqdm)")
+    ap.add_argument("--excel", type=str, help="Ruta del archivo Excel con plataformas y emails")
     return ap.parse_args()
 
 # --- main ---
@@ -295,9 +352,18 @@ def main():
     else:
         extensiones = [e.strip().lstrip(".") for e in args.ext.split(",")]
 
+    # LEER EXCEL DE PLATAFORMAS
+    if not args.excel:
+        excel_path = pedir_ruta("4) Ruta del archivo Excel de plataformas: ", True, False)
+    else:
+        excel_path = Path(args.excel).expanduser()
+
+    # Leer Excel de plataformas
+    mapeo_plataformas = leer_plataformas_excel(excel_path)
+
     # salida
     if not args.out:
-        base_dir = pedir_ruta("4) Carpeta base de salida (Enter=actual): ", False, True, Path.cwd())
+        base_dir = pedir_ruta("5) Carpeta base de salida (Enter=actual): ", False, True, Path.cwd())
     else:
         base_dir = Path(args.out).expanduser()
     out_dir = base_dir / "Export"
@@ -305,7 +371,7 @@ def main():
 
     # crear vacíos
     if not args.dominios or not args.db or not args.out or not args.ext:
-        crear_vacios = input("5) ¿Crear archivos sin coincidencias? [s/N]: ").strip().lower().startswith("s")
+        crear_vacios = input("6) ¿Crear archivos sin coincidencias? [s/N]: ").strip().lower().startswith("s")
     else:
         crear_vacios = args.crear_vacios
 
@@ -335,7 +401,7 @@ def main():
             pbar.close()
 
     print("→ Guardando resultados...")
-    escribir_resultados(agg, out_dir, crear_vacios)
+    escribir_resultados(agg, out_dir, crear_vacios, mapeo_plataformas)
 
     total_hits = sum(len(v) for v in agg.values())
     con_hits = sum(1 for v in agg.values() if v)
