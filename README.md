@@ -30,16 +30,16 @@ DarkTxt-finder es una herramienta en **Python** para buscar rápidamente coincid
 
 ## 📦 Requisitos
 
-El único paquete externo necesario es:
+Los paquetes externos necesarios son:
 
 ```txt
-pyahocorasick>=2.0.0
+pyahocorasick>=2.0.0 y pandas
 ```
 
 Instálalo con:
 
 ```bash
-pip3 install -r requirements.txt
+pip3 install -r requirements.txt 
 ```
 
 > Todo lo demás usa bibliotecas estándar de Python 3.8+.
