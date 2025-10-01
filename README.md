@@ -7,7 +7,7 @@
 █  ████████  ████████        ██  ███  ██
 █        ██        ██  ████  ██  ████  █
                                         
-by m10sec m10sec@proton.mx
+by m10sec m10sec@proton.mx and a friend
   🔍 Buscador de dominios ultra-rápido en grandes bases de datos
      usando Aho-Corasick + Multiprocessing
 ```
